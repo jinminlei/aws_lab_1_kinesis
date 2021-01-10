@@ -1,0 +1,144 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS demo
+
+Parameters: 
+  StackName:
+    Type: String
+  
+Resources:
+  Kinesis:
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      Parameters:
+        myBucketNameParam: !Sub ${StackName}-bucket2
+      TemplateURL: https://s3.amazonaws.com/aws-bigdata-blog/artifacts/gluelambdaarch/master.yaml
+  # User Pool
+  UserPool:
+    Properties:
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AutoVerifiedAttributes:
+        - email
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+      UserPoolName: !Sub ${StackName}-Pool
+    Type: AWS::Cognito::UserPool
+  UserPoolClient:
+    Properties:
+      ClientName: !Sub ${StackName}-PoolClient
+      ExplicitAuthFlows:
+        - USER_PASSWORD_AUTH
+      GenerateSecret: false
+      UserPoolId: !Ref UserPool
+    Type: AWS::Cognito::UserPoolClient
+  # Identity Pool
+  IdentityPool:
+    Properties:
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId:
+            Ref: UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+      IdentityPoolName: !Ref StackName
+    Type: AWS::Cognito::IdentityPool
+  IdentityPoolRoles:
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthorizedRole.Arn
+        unauthenticated: !GetAtt UnAuthorizedRole.Arn
+      RoleMappings:
+        'UserPool':
+          IdentityProvider: !Join
+            - ''
+            - - !Sub 'cognito-idp.${AWS::Region}.amazonaws.com/'
+              - !Ref UserPool
+              - ':'
+              - !Ref UserPoolClient
+          AmbiguousRoleResolution: AuthenticatedRole
+          Type: Token
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+  # IAM Roles
+  AuthorizedRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud':
+                  Ref: IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Path: /
+      Policies:
+        - PolicyName: !Sub ${StackName}-Authorized
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Action:
+              - kinesis:DescribeStream
+              - kinesis:PutRecord
+              - kinesis:PutRecords
+              Resource:
+              - arn:aws:kinesis:*:*:stream/*
+              Effect: Allow
+            - Action:
+              - firehose:DescribeDeliveryStream
+              - firehose:PutRecord
+              - firehose:PutRecordBatch
+              Resource:
+              - arn:aws:firehose:*:*:deliverystream/*
+              Effect: Allow
+            - Action:
+              - ec2:DescribeRegions
+              - firehose:ListDeliveryStreams
+              - kinesis:ListStreams
+              Resource:
+              - "*"
+              Effect: Allow
+      RoleName: !Sub ${StackName}-Authorized
+    Type: AWS::IAM::Role
+  UnAuthorizedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Federated:
+            - cognito-identity.amazonaws.com
+          Action:
+          - sts:AssumeRoleWithWebIdentity
+      Path: "/"
+      Policies:
+      - PolicyName: !Sub ${StackName}-UnAuthorized
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Deny
+            Action:
+            - "*"
+            Resource:
+            - "*" 
+
+Outputs:
+  IdentityPoolId:
+    Value: !Ref IdentityPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+  UserPoolId:
+    Value: !Ref UserPool
