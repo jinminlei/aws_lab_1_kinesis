@@ -41,7 +41,7 @@ After this you'll see 2 stacks **aws-kinesis** and **aws-kinesis-Kinesis-[some r
 ```
 > .\step5_create_glue_job.ps1
 ```
-# Step 5. Go to Athena and do the queries, for example
+# Step 6. Go to Athena and do the queries, for example
 ```
 SELECT ( SUM(daily_avg_inefficiency)/COUNT(*) ) AS all_device_avg_inefficiency,
          timestamp
@@ -49,3 +49,8 @@ FROM awsblogsgluedemo.daily_avg_inefficiency
 GROUP BY  timestamp;
 
 ```
+# Step 7. Delete all resources created
+```
+> .\step7_delete_resources.ps1
+```
+
