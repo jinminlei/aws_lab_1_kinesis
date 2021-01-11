@@ -34,10 +34,10 @@ After this you'll see 2 stacks **aws-kinesis** and **aws-kinesis-Kinesis-[some r
 
 # Step 4. Create the crawler and run it
 ```
-> .\step4_create_cognito_user.ps1
+> .\step4_create_crawler.ps1
 ```
 
 # Step 5. Create the job and run it
 ```
-> .\step5_create_cognito_user.ps1
+> .\step5_create_glue_job.ps1
 ```
